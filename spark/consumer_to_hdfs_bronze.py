@@ -43,7 +43,7 @@ df = df.withColumn("date", current_date())
 # --- Écrire dans HDFS en JSON partitionné par date ---
 df.write.mode("append") \
     .partitionBy("date") \
-    .json("hdfs://hdfs_namenode:9000/datalake/bronze/waqi")
+    .json("hdfs://namenode:9000/datalake/bronze/waqi")
 
 print("✅ Données stockées dans HDFS en Bronze avec partition par date")
 

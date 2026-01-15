@@ -9,6 +9,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - weather-net
 
   kafka:
     image: confluentinc/cp-kafka:7.4.1
@@ -22,29 +24,38 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - weather-net
 
-  hdfs_namenode:
-    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
-    container_name: hdfs_namenode
-    environment:
-      - CLUSTER_NAME=test
-    ports:
-      - "9870:9870"  # Web UI
-      - "9000:9000"  # HDFS port
-    volumes:
-      - hdfs_namenode:/hadoop/dfs/name
+  namenode:
+      image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+      container_name: namenode
+      restart: always
+      ports:
+        - 9870:9870
+        - 9000:9000
+      volumes:
+        - hdfs_namenode:/hadoop/dfs/name
+        - ./myhadoop:/myhadoop
+      environment:
+        - CLUSTER_NAME=test
+      env_file:
+        - ./hadoop.env
+      networks:
+        - weather-net
 
-  hdfs_datanode:
+  datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
-    container_name: hdfs_datanode
-    environment:
-      - NAMENODE_URI=hdfs://hdfs_namenode:9000
-    depends_on:
-      - hdfs_namenode
-    ports:
-      - "9864:9864"  # Web UI
+    container_name: datanode
+    restart: always
     volumes:
       - hdfs_datanode:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - weather-net
 
   spark:
     build:
@@ -56,12 +67,40 @@ services:
       - ./.env:/app/spark/.env        # Variables d'environnement
     depends_on:
       - kafka
-      - hdfs_namenode
-      - hdfs_datanode
+      - namenode
+      - datanode
     command: tail -f /dev/null
     ports:
       - "4040:4040"
+    networks:
+      - weather-net
+  pyspark-notebook:
+    image: jupyter/pyspark-notebook:latest
+    container_name: pyspark_notebook
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./spark:/home/jovyan/work
+    environment:
+      PYSPARK_SUBMIT_ARGS: >
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.0.1,org.apache.kafka:kafka-clients:2.6.0
+        pyspark-shell
+    command: >
+      bash -c "
+        pip install --no-cache-dir requests kafka-python python-dotenv hdfs && start-notebook.sh
+          
+          
+          
+          
+      "
+    networks:
+      - weather-net
+
 
 volumes:
   hdfs_namenode:
   hdfs_datanode:
+
+networks:
+  weather-net:
+    driver: bridge
