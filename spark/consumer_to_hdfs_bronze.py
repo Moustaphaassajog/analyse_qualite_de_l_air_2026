@@ -46,3 +46,4 @@ df.write.mode("append") \
     .json("hdfs://hdfs_namenode:9000/datalake/bronze/waqi")
 
 print("✅ Données stockées dans HDFS en Bronze avec partition par date")
+
