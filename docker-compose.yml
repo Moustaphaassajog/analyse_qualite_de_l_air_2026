@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.1
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.1
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  hdfs_namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: hdfs_namenode
+    environment:
+      - CLUSTER_NAME=test
+    ports:
+      - "9870:9870"  # Web UI
+      - "9000:9000"  # HDFS port
+    volumes:
+      - hdfs_namenode:/hadoop/dfs/name
+
+  hdfs_datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: hdfs_datanode
+    environment:
+      - NAMENODE_URI=hdfs://hdfs_namenode:9000
+    depends_on:
+      - hdfs_namenode
+    ports:
+      - "9864:9864"  # Web UI
+    volumes:
+      - hdfs_datanode:/hadoop/dfs/data
+
+  spark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spark
+    volumes:
+      - ./spark:/app/spark
+    depends_on:
+      - kafka
+      - hdfs_namenode
+      - hdfs_datanode
+    command: tail -f /dev/null
+    ports:
+      - "4040:4040"
+
+volumes:
+  hdfs_namenode:
+  hdfs_datanode:
